@@ -12,23 +12,78 @@ if np.any([IDR_PATH.endswith(test_case) for test_case in ["/dr2", "/dr2/"]]):
 # ============ #
 # Top level    #
 # ============ #
+def get_data(release="dr3", which="salt2-T21", **kwargs):
+    """Return the combined master list and SALT data for a given release.
+
+    Parameters
+    ----------
+    release : str, optional
+        The data release version (default is "dr3").
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the master list joined with SALT data,
+        indexed by "ztfname".
+    """
+    # so far data is quite empty but more will come.
+    masterlist = get_master_list(release=release)
+    salt = get_saltdata(release=release, which=which, **kwargs)
+    data = masterlist.join(salt)
+    return data
+
 def get_master_list(release="dr3"):
     """return the master list of ZTF objects"""
-    return pandas.read_csv(
-        os.path.join(IDR_PATH, release, "tables/object_lists/master_list.csv")
-    )
+    return pandas.read_csv( os.path.join(IDR_PATH, release, "tables/object_lists/master_list.csv") ).set_index("ztfname")
 
-def get_data(release="dr3"):
-    """ """
-    # so far data is quite empty but more will come.
-    masterlist = get_master_list(release).set_index("ztfname")
-    return masterlist
+def get_saltdata(release="dr3", which="salt2-T21", bands="gri", version="02092025"):
+    """Return the SALT data for a given release and parameters.
+
+    Parameters
+    ----------
+    release : str, optional
+        The data release version (default is "dr3").
+    which : str, optional
+        The SALT model to use (default is "salt2-T21").
+    bands : str, optional
+        The photometric bands to include (default is "gri").
+    version : str, optional
+        The version of the SALT data (default is "02092025").
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the SALT parameters for the specified release
+        and parameters.
+    """
+    pathsalt_dir = os.path.join(IDR_PATH, release, "tables/object_lists")
+    basename = f"ztf{release}_{which}params_{bands}_{version}.csv"
+    return pandas.read_csv(os.path.join(pathsalt_dir, basename)).set_index("ztfname")
+
+def get_target_saltdata(name, which="salt2-T21", **kwargs):
+    """Return the SALT data for a target object.
+
+    Parameters
+    ----------
+    name : str
+        The name or identifier of the target object.
+    which : str, optional
+        The SALT model to use (default is "salt2-T21").
+    **kwargs
+        Additional keyword arguments passed to get_saltdata().
+
+    Returns
+    -------
+    pandas.Series
+        Series containing the SALT data for the specified target.
+    """
+    return get_saltdata(which=which, **kwargs).loc[name]
 
 # ============ #
 # Lightcurves  #
 # ============ #
 # from ztfidr3.io import IDR_PATH
-def get_target_lightcurve(target, release="dr3", test_exist=True, load=True):
+def get_target_lightcurve(name, release="dr3", test_exist=True, load=True):
     """Get the target lightcurve for a ZTF object.
 
     Parameters
@@ -50,10 +105,10 @@ def get_target_lightcurve(target, release="dr3", test_exist=True, load=True):
         If load is False, returns the file path as a string.
         If test_exist is True and file does not exist, returns None.
     """
-    fullpath = os.path.join(IDR_PATH, release, "lightcurves", f"{target}_LC.csv")
+    fullpath = os.path.join(IDR_PATH, release, "lightcurves", f"{name}_LC.csv")
     if test_exist:
         if not os.path.isfile(fullpath):
-            warnings.warn(f"No lc file for {target} ; {fullpath}")
+            warnings.warn(f"No lc file for {name} ; {fullpath}")
             return None
 
     if not load:
@@ -79,9 +134,7 @@ def parse_spectrum_file(filename):
     tuple
         Tuple of (name, mjd, instrument) extracted from the filename
     """
-
     import re
-
     # Parse filename to extract metadata
     basename = os.path.basename(filename)
     match = re.match(r"([^_]+)_([^_]+)_([^.]+)\.ascii", basename)
