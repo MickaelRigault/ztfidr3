@@ -1,4 +1,4 @@
-# ztfidr3
+# ztfcosmoidr
 Access ZTF Internal data-release. 
 
 This package is currently maintained for the internal data-release 3. 
