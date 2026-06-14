@@ -7,8 +7,8 @@ Data associated with this package is only available to the ZTF Cosmo Science wor
 
 # Installation
 ```bash
-git clone https://github.com/MickaelRigault/ztfidr3.git
-cd ztfidr3
+git clone https://github.com/MickaelRigault/ztfcosmoidr.git
+cd ztfcosmoidr
 pip install .
 ```
 
@@ -16,7 +16,8 @@ pip install .
 The `Sample` object is a top layer made to ease access to any target. 
 
 ```python
-sample = ztfidr3.Sample.load_release("dr3")
+import ztfcosmoidr
+sample = ztfcosmoidr.Sample.load_release("dr3")
 
 # access top level datatable
 data = sample.data
