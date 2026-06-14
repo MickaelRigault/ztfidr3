@@ -159,6 +159,6 @@ def get_spec_datafile(release="dr3"):
     path_to_spec = os.path.join(IDR_PATH, release, "spectra")
     all_spectra = glob(os.path.join(path_to_spec, "*.ascii"))
     specdata = [parse_spectrum_file(filename) for filename in all_spectra]
-    specdata = pandas.DataFrame(specdata, columns=["name", "mjd", "instrument"]).astype({"mjd": "float"})
+    specdata = pandas.DataFrame(specdata, columns=["ztfname", "mjd", "instrument"]).astype({"mjd": "float"})
     specdata["basename"] = [os.path.basename(filename) for filename in all_spectra]
     return specdata

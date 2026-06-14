@@ -137,7 +137,7 @@ class LightCurve():
         propmodel = saltdata[["z","t0","x0","x1","c","mwebv"]].to_dict()
         return get_saltmodel(**(propmodel | kwargs) )
 
-    def get_lcdata(self, zp=None, mjdrange=None,
+    def get_lcdata(self, zp=30, mjdrange=None,
                        min_detection=None,
                        filters=None,
                        flagout=[1,2,4,8,16]):
@@ -227,12 +227,89 @@ class LightCurve():
 
         return lcdata
 
-    def show(self, ax=None, figsize=None, zp=30, bands="*",
-                 formattime=True, zeroline=True,
-                 incl_salt=True, which_model=None, autoscale_salt=True, clear_yticks=True,
-                 phase_range=[-30,100], as_phase=False, t0=None,
-                 zprop={}, inmag=False, ulength=0.1, ualpha=0.1, notplt=False,
-                 rm_flags=True, **kwargs):
+    def show(self, ax=None, zp=30, bands="*",
+                formattime=True, zeroline=True,
+                incl_salt=True, which_model=None, autoscale_salt=True, clear_yticks=True,
+                phase_range=[-30,100], as_phase=False,
+                zprop={}, inmag=False, ulength=0.1, ualpha=0.1,
+                rm_flags=True, **kwargs):
+        """Display the light curve with optional SALT2 model overlay.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Matplotlib axes object. If None, a new figure and axes are created.
+        zp : float, optional
+            Zero point for flux calibration. If None, uses the data's ZP values.
+        bands : str, list of str, or None, optional
+            Filter selection. Options are:
+            - None, '*', or 'all': show all bands
+            - str: single filter (e.g. 'ztfg')
+            - list of str: multiple filters
+            Default is "*".
+        formattime : bool, optional
+            Format x-axis as dates. Default is True.
+        zeroline : bool, optional
+            Draw a zero line on the plot. Default is True.
+        incl_salt : bool, optional
+            Include SALT2 model in the plot. Default is True.
+        which_model : str, optional
+            SALT2 model specification. Default is None (uses default).
+        autoscale_salt : bool, optional
+            Automatically scale axes to fit the model. Default is True.
+        clear_yticks : bool, optional
+            Clear y-axis tick labels. Default is True.
+        phase_range : list of float, optional
+            Phase range [min, max] in days relative to t0. Default is [-30, 100].
+        as_phase : bool, optional
+            Plot time as phase (days from t0) instead of MJD. Default is False.
+        zprop : dict, optional
+            Additional properties for the zero line. Default is {}.
+        inmag : bool, optional
+            Plot in magnitude instead of flux. Default is False.
+        ulength : float, optional
+            Upper limit arrow length. Default is 0.1.
+        ualpha : float, optional
+            Upper limit arrow transparency. Default is 0.1.
+        notplt : bool, optional
+            Do not plot (reserved for future use). Default is False.
+        rm_flags : bool, optional
+            Remove flagged data points. Default is True.
+        **kwargs : dict
+            Additional keyword arguments passed to errorbar function.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The figure object containing the plot.
+
+        Notes
+        -----
+        The plot displays light curve data with error bars, color-coded by filter.
+        Good data points are filled, bad data points are outlined. SALT2 model
+        light curves can be overlaid if incl_salt is True.
+        """
+        passed_kwargs = {key:val for key,val in locals().items()
+                         if key not in ["self", "incl_salt", "kwargs"]}
+        if incl_salt:
+            saltmodel = self.get_saltmodel(which=which_model)
+        else:
+            saltmodel = None
+
+        t0 = self.saltdata.t0
+        lcdata = self.get_lcdata(zp=zp)
+
+        return self.__class__._show(lcdata, t0=t0, saltmodel=saltmodel,
+                                    **(passed_kwargs | kwargs))
+
+    @staticmethod
+    def _show(lcdata, t0, saltmodel=None,
+                ax=None, zp=30, bands="*",
+                formattime=True, zeroline=True,
+                autoscale_salt=True, clear_yticks=True,
+                phase_range=[-30,100], as_phase=False,
+                zprop={}, inmag=False, ulength=0.1, ualpha=0.1,
+                rm_flags=True, **kwargs):
         """Display the light curve with optional SALT2 model overlay.
 
         Parameters
@@ -311,14 +388,9 @@ class LightCurve():
         bad_prop  = dict(ls="None", mew=1, ecolor="0.7", zorder=6)
         lineprop  = dict(color="0.7", zorder=1, lw=0.5)
 
-        if incl_salt:
-            saltmodel = self.get_saltmodel(which=which_model)
-        else:
-             saltmodel = None
-             autoscale_salt = False
+        if saltmodel is None:
+            autoscale_salt = False
 
-
-        t0 = self.saltdata.t0
         if not np.isnan(t0):
             if phase_range is not None: # removes NaN
                 timerange = [t0+phase_range[0], t0+phase_range[1]]
@@ -343,9 +415,8 @@ class LightCurve():
         else:
             prop = {}
 
-        lightcurves = self.get_lcdata(zp=zp, mjdrange=timerange, **prop)
         if bands is None or bands in ["*", "all"]:
-            bands = np.unique(lightcurves["filter"])
+            bands = np.unique(lcdata["filter"])
         else:
             bands = np.atleast_1d(bands)
 
@@ -358,9 +429,9 @@ class LightCurve():
                 warnings.warn(f"WARNING: Unknown instrument: {band_} | magnitude not shown")
                 continue
 
-            flagband   = (lightcurves["filter"]==band_)
+            flagband   = (lcdata["filter"]==band_)
 
-            bdata = lightcurves[flagband]
+            bdata = lcdata[flagband]
 #            flag_good_ = flag_good[flagband]
 
             # IN FLUX
@@ -381,7 +452,7 @@ class LightCurve():
 
             # IN MAG
             else:
-                flag_det = (lightcurves["mag"]<99)
+                flag_det = (lcdata["mag"]<99)
                 # - Data
                 bdata = bdata[flag_det]
                 #flag_good_ = flag_good_[flag_det]
@@ -428,7 +499,7 @@ class LightCurve():
         if inmag:
             ax.invert_yaxis()
             for band_ in bands:
-                bdata = lightcurves[(lightcurves["filter"]==band_) & (lightcurves["mag"]>=99)]
+                bdata = lcdata[(lcdata["filter"]==band_) & (lcdata["mag"]>=99)]
                 if as_phase:
                     datatime = Time(bdata["mjd"], format="mjd").datetime
                 else:
@@ -452,8 +523,8 @@ class LightCurve():
             ax.axhline(0 if not inmag else 22, **{**dict(color="0.7",ls="--",lw=1, zorder=1),**zprop} )
 
         if not inmag:
-            max_data = np.percentile(lightcurves["flux"], 99.)
-            mean_error = np.nanmean(lightcurves["error"])
+            max_data = np.percentile(lcdata["flux"], 99.)
+            mean_error = np.nanmean(lcdata["error"])
             ax.set_ylim(-2*mean_error, max_data*1.15)
             if clear_yticks:
                 ax.axes.yaxis.set_ticklabels([])
